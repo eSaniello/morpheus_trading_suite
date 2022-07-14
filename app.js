@@ -7,10 +7,6 @@ const express = require("express")
 const dotenv = require('dotenv');
 const fs = require('fs');
 const app = express()
-const http = require('http');
-const server = http.createServer(app);
-const { Server } = require("socket.io");
-const io = new Server(server);
 dotenv.config();
 
 // To parse the incoming requests with JSON payloads
@@ -56,13 +52,8 @@ app.post("/hook", async (req, res) => {
     res.status(200).end()
 })
 
-// socket shenanigans
-io.on('connection', (socket) => {
-    console.log('a user connected');
-});
-
 const PORT = 80;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`))
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`))
 
 
 // // secret code in the alert to automatically take the trades
