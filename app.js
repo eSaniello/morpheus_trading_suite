@@ -32,24 +32,36 @@ app.get("/", (req, res) => {
     res.status(200).send('Stop gambling ser.').end();
 })
 
-
 // Alert structure
-// {
-//     'pair': 'BTC-PERP',
-//     'alert': 'FZVO BG',
-//     'time': '01-07-2022 18:27'
-// }
+// [
+//     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:23:02Z" },
+//     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:24:02Z" },
+//     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:25:04Z" },
+//     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:26:03Z" }
+// ]
 let alerts = []
 
 app.post("/hook", async (req, res) => {
     if (req.body.chatId) {
         const order = req.body;
 
-        alerts.push({ "pair": order.pair, "alert": order.alert, "time": order.time })
-        bot.sendMessage(order.chatId, `✅ Alert received: pair: ${order.pair}, alert: ${order.alert}, time: ${order.time}`)
-        bot.sendMessage(order.chatId, `List of alerts: ${JSON.stringify(alerts)}`)
+        // If list is empty then add the first one
+        if (alerts.length == 0)
+            alerts.push({ "pair": order.pair, "alert": order.alert, "time": order.time })
+
+        // If the list already contains the pair then don't add it
+        if (!HELPER.containsPair(order, alerts))
+            alerts.push({ "pair": order.pair, "alert": order.alert, "time": order.time })
+
+        // bot.sendMessage(order.chatId, `✅ Alert received: pair: ${order.pair}, alert: ${order.alert}, time: ${order.time}`)
+        // bot.sendMessage(order.chatId, `List of alerts: ${JSON.stringify(alerts)}`)
     }
     res.status(200).end()
+})
+
+// get all alerts
+app.get("/alerts", (req, res) => {
+    res.status(200).send(JSON.stringify(alerts)).end();
 })
 
 const PORT = 80;

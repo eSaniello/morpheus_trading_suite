@@ -25,4 +25,16 @@ function checkText(incomingText, checkText) {
     return incomingText === checkText || incomingText === (`${checkText}${CONFIG.BOTNAME}`)
 }
 
-module.exports = { convertString, checkText, calculateProfit }
+// Check if incomming alerts are already in the list
+function containsPair(obj, list) {
+    var i;
+    for (i = 0; i < list.length; i++) {
+        if (list[i].pair === obj.pair) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+module.exports = { convertString, checkText, calculateProfit, containsPair }
