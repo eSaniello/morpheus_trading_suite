@@ -40,6 +40,7 @@ app.get("/", (req, res) => {
 //     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:26:03Z" }
 // ]
 let alerts = []
+let min_treshold = 1
 
 app.post("/hook", async (req, res) => {
     if (req.body.chatId) {
@@ -61,6 +62,21 @@ app.post("/hook", async (req, res) => {
 
 // get all alerts
 app.get("/alerts", (req, res) => {
+    // if an alert in the list is older than specified minutes then remove it
+    alerts.forEach(alert => {
+        const date1 = new Date(alert.time);
+        const date2 = new Date();
+
+        const diff = date2.getTime() - date1.getTime();
+        let msec = diff;
+        const hh = Math.floor(msec / 1000 / 60 / 60);
+        msec -= hh * 1000 * 60 * 60;
+        const mm = Math.floor(msec / 1000 / 60);
+
+        if (mm > min_treshold)
+            alerts.pop(alert)
+    });
+
     res.status(200).send(JSON.stringify(alerts)).end();
 })
 
