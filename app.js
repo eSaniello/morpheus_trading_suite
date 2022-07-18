@@ -3,10 +3,12 @@ const TelegramBot = require('node-telegram-bot-api');
 const CONFIG = require('./config/config');
 const HELPER = require('./services/helper.service');
 const FTX = require('./services/ftx.service');
+const cors = require('cors');
 const express = require("express")
 const dotenv = require('dotenv');
 const fs = require('fs');
 const app = express()
+app.use(cors())
 dotenv.config();
 
 // To parse the incoming requests with JSON payloads
@@ -40,7 +42,7 @@ app.get("/", (req, res) => {
 //     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:26:03Z" }
 // ]
 let alerts = []
-let min_treshold = 1
+let min_treshold = 5
 
 app.post("/hook", async (req, res) => {
     if (req.body.chatId) {
