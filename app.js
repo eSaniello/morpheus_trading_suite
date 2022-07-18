@@ -23,11 +23,36 @@ const token = `${process.env.TELEGRAM_API_SECRET}`;
 // Create a bot that uses 'polling' to fetch new updates
 const bot = new TelegramBot(token, { polling: true });
 bot.on("polling_error", (msg) => console.log(msg));
+
+// Listen to any message
 bot.on('message', async (msg) => {
     // get ID from the one who chats
     const chatId = msg.chat.id;
     let text = msg.text ? msg.text : '';
+    console.log(msg)
 })
+
+// Listener (handler) for callback data from /label command
+bot.on('callback_query', (callbackQuery) => {
+    const message = callbackQuery.message;
+    const decision = callbackQuery.data;
+
+    if (decision == 'no') {
+        // bot.deleteMessage(message.chat.id, message.message_id);
+        bot.sendMessage(message.chat.id, `You decided not to take the trade. :(`);
+    } else {
+        bot.sendMessage(message.chat.id, `You decided to take the trade. LFG!`);
+    }
+
+    bot.editMessageReplyMarkup({
+        reply_markup: {
+            inline_keyboard: [[],]
+        }
+    }, {
+        chat_id: message.chat.id,
+        message_id: message.message_id
+    });
+});
 
 // default route
 app.get("/", (req, res) => {
@@ -41,46 +66,63 @@ app.get("/", (req, res) => {
 //     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:25:04Z" },
 //     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:26:03Z" }
 // ]
-let alerts = []
-let min_treshold = 5
+// let alerts = []
+// let min_treshold = 5
 
 app.post("/hook", async (req, res) => {
     if (req.body.chatId) {
         const order = req.body;
 
-        // If list is empty then add the first one
-        if (alerts.length == 0)
-            alerts.push({ "pair": order.pair, "alert": order.alert, "time": order.time })
+        // // If list is empty then add the first one
+        // if (alerts.length == 0)
+        //     alerts.push({ "pair": order.pair, "alert": order.alert, "time": order.time })
 
-        // If the list already contains the pair then don't add it
-        if (!HELPER.containsPair(order, alerts))
-            alerts.push({ "pair": order.pair, "alert": order.alert, "time": order.time })
+        // // If the list already contains the pair then don't add it
+        // if (!HELPER.containsPair(order, alerts))
+        //     alerts.push({ "pair": order.pair, "alert": order.alert, "time": order.time })
 
-        // bot.sendMessage(order.chatId, `✅ Alert received: pair: ${order.pair}, alert: ${order.alert}, time: ${order.time}`)
+        const reply_options = {
+            reply_markup: {
+                one_time_keyboard: true,
+                inline_keyboard: [
+                    [
+                        {
+                            text: 'Take the trade',
+                            callback_data: 'yes'
+                        }, {
+                            text: 'Vibes are off',
+                            callback_data: 'no'
+                        },
+                    ]
+                ],
+            },
+            parse_mode: 'HTML'
+        }
+        bot.sendMessage(order.chatId, `✅ Alert received: pair: ${order.pair}, alert: ${order.alert}, time: ${order.time}`, reply_options);
         // bot.sendMessage(order.chatId, `List of alerts: ${JSON.stringify(alerts)}`)
     }
     res.status(200).end()
 })
 
-// get all alerts
-app.get("/alerts", (req, res) => {
-    // if an alert in the list is older than specified minutes then remove it
-    alerts.forEach(alert => {
-        const date1 = new Date(alert.time);
-        const date2 = new Date();
+// // get all alerts
+// app.get("/alerts", (req, res) => {
+//     // if an alert in the list is older than specified minutes then remove it
+//     alerts.forEach(alert => {
+//         const date1 = new Date(alert.time);
+//         const date2 = new Date();
 
-        const diff = date2.getTime() - date1.getTime();
-        let msec = diff;
-        const hh = Math.floor(msec / 1000 / 60 / 60);
-        msec -= hh * 1000 * 60 * 60;
-        const mm = Math.floor(msec / 1000 / 60);
+//         const diff = date2.getTime() - date1.getTime();
+//         let msec = diff;
+//         const hh = Math.floor(msec / 1000 / 60 / 60);
+//         msec -= hh * 1000 * 60 * 60;
+//         const mm = Math.floor(msec / 1000 / 60);
 
-        if (mm > min_treshold)
-            alerts.pop(alert)
-    });
+//         if (mm > min_treshold)
+//             alerts.pop(alert)
+//     });
 
-    res.status(200).send(JSON.stringify(alerts)).end();
-})
+//     res.status(200).send(JSON.stringify(alerts)).end();
+// })
 
 const PORT = 80;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`))
