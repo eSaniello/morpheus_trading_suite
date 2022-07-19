@@ -69,6 +69,8 @@ app.get("/", (req, res) => {
 // let alerts = []
 // let min_treshold = 5
 
+let messages = []
+
 app.post("/hook", async (req, res) => {
     if (req.body.chatId) {
         const order = req.body;
@@ -81,6 +83,7 @@ app.post("/hook", async (req, res) => {
         // if (!HELPER.containsPair(order, alerts))
         //     alerts.push({ "pair": order.pair, "alert": order.alert, "time": order.time })
 
+        // telegram buttons
         const reply_options = {
             reply_markup: {
                 one_time_keyboard: true,
@@ -98,8 +101,18 @@ app.post("/hook", async (req, res) => {
             },
             parse_mode: 'HTML'
         }
-        bot.sendMessage(order.chatId, `✅ Alert received: pair: ${order.pair}, alert: ${order.alert}, time: ${order.time}`, reply_options);
-        // bot.sendMessage(order.chatId, `List of alerts: ${JSON.stringify(alerts)}`)
+        bot.sendMessage(order.chatId, `✅ Alert received: pair: ${order.pair}, alert: ${order.alert}, time: ${order.time}`, reply_options)
+            .then(msg => {
+                // if there are multiple alerts, then replace the last one with the new one
+                messages.forEach(m => {
+                    if (m.pair == order.pair && order.time > m.time) {
+                        bot.deleteMessage(order.chatId, m.msg_id)
+                        messages = messages.filter(alert => alert.pair != order.pair)
+                    }
+                });
+
+                messages.push({ "pair": order.pair, "msg_id": msg.message_id, "time": order.time })
+            });
     }
     res.status(200).end()
 })
