@@ -41,6 +41,79 @@ bot.on('callback_query', (callbackQuery) => {
         // bot.deleteMessage(message.chat.id, message.message_id);
         bot.sendMessage(message.chat.id, `You decided not to take the trade. :(`);
     } else {
+        // make the connection with the user credentials
+        const API_CONNECTION = new FTXRest({
+            key: `${process.env.FTX_API_KEY}`,
+            secret: `${process.env.FTX_API_SECRET}`
+        });
+
+        if (order.type.toLowerCase() === 'buy' || order.type.toLowerCase() === 'sell') {
+            // create the order
+            let side = order.type.toLowerCase();
+
+            // extract the correct pair from the string. 
+            // THIS WILL ONLY WORK FOR PERPS!
+            let pair = `${order.ticker.toLowerCase().slice(0, order.ticker.length - 4)}-perp`;
+
+            let accountInfo = await FTX.getBalance(API_CONNECTION);
+            let entry = await FTX.getPrice(API_CONNECTION, pair);
+            let risk = Number(order.risk);
+            // let tp = Number(order.tp);
+            let sl = Number(order.sl);
+            let account_size = accountInfo.collateral;
+            let pos_size = 0;
+
+            if (side == 'buy')
+                pos_size = (account_size * (risk * 0.01)) / (entry - sl); //buy
+            else if (side == 'sell')
+                pos_size = (account_size * (risk * 0.01)) / (sl - entry); //sell
+
+            if (pos_size != 0) {
+                // entry
+                API_CONNECTION.request({
+                    method: 'POST',
+                    path: '/orders',
+                    data: {
+                        market: pair,
+                        size: pos_size,
+                        side: side,
+                        type: 'market',
+                        price: null
+                    }
+                }).then(async () => {
+                    // stoploss
+                    API_CONNECTION.request({
+                        method: 'POST',
+                        path: '/conditional_orders',
+                        data: {
+                            market: pair,
+                            side: side == 'buy' ? 'sell' : 'buy',
+                            type: 'stop',
+                            size: pos_size,
+                            triggerPrice: sl,
+                            orderPrice: sl,
+                            retryUntilFilled: true
+                        }
+                    }).then(async () => {
+                        bot.sendMessage(message.chat.id, `✅ ${side.toUpperCase()} $${(pos_size).toFixed(5)} ${pair} @ $${entry} with SL @ $${sl}`);
+
+                        // pick random gif
+                        let gifs = [];
+                        fs.readdirSync('./assets/').forEach(file => {
+                            gifs.push(file);
+                        });
+
+                        let num = Math.floor(Math.random() * gifs.length + 1);
+
+                        bot.sendAnimation(message.chat.id, './assets/' + gifs[num - 1]);
+                    }).catch(res => bot.sendMessage(chatId, `❌ ${res}`));
+                }).catch(res => bot.sendMessage(message.chat.id, `❌ ${res}`));
+            } else {
+                bot.sendMessage(message.chat.id, `❌ Error calculating position size ser`);
+            }
+        }
+
+
         bot.sendMessage(message.chat.id, `You decided to take the trade. LFG!`);
     }
 
