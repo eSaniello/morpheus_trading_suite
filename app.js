@@ -33,7 +33,7 @@ bot.on('message', async (msg) => {
 })
 
 // Listener (handler) for callback data from /label command
-bot.on('callback_query', (callbackQuery) => {
+bot.on('callback_query', async (callbackQuery) => {
     const message = callbackQuery.message;
     const decision = callbackQuery.data;
 
