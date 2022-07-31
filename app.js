@@ -32,6 +32,7 @@ bot.on('message', async (msg) => {
     console.log(msg)
 })
 
+let risk_per_trade = 1
 // Listener (handler) for callback data from /label command
 bot.on('callback_query', async (callbackQuery) => {
     const message = callbackQuery.message;
@@ -53,11 +54,11 @@ bot.on('callback_query', async (callbackQuery) => {
 
             // extract the correct pair from the string. 
             // THIS WILL ONLY WORK FOR PERPS!
-            let pair = `${order.ticker.toLowerCase().slice(0, order.ticker.length - 4)}-perp`;
+            let pair = `${order.pair.toLowerCase().slice(0, order.ticker.length - 4)}-perp`;
 
             let accountInfo = await FTX.getBalance(API_CONNECTION);
             let entry = await FTX.getPrice(API_CONNECTION, pair);
-            let risk = Number(order.risk);
+            let risk = risk_per_trade
             // let tp = Number(order.tp);
             let sl = Number(order.sl);
             let account_size = accountInfo.collateral;
@@ -81,32 +82,17 @@ bot.on('callback_query', async (callbackQuery) => {
                         price: null
                     }
                 }).then(async () => {
-                    // stoploss
-                    API_CONNECTION.request({
-                        method: 'POST',
-                        path: '/conditional_orders',
-                        data: {
-                            market: pair,
-                            side: side == 'buy' ? 'sell' : 'buy',
-                            type: 'stop',
-                            size: pos_size,
-                            triggerPrice: sl,
-                            orderPrice: sl,
-                            retryUntilFilled: true
-                        }
-                    }).then(async () => {
-                        bot.sendMessage(message.chat.id, `✅ ${side.toUpperCase()} $${(pos_size).toFixed(5)} ${pair} @ $${entry} with SL @ $${sl}`);
+                    bot.sendMessage(message.chat.id, `✅ ${side.toUpperCase()} $${(pos_size).toFixed(5)} ${pair} @ $${entry} with SL @ $${sl}`);
 
-                        // pick random gif
-                        let gifs = [];
-                        fs.readdirSync('./assets/').forEach(file => {
-                            gifs.push(file);
-                        });
+                    // pick random gif
+                    let gifs = [];
+                    fs.readdirSync('./assets/').forEach(file => {
+                        gifs.push(file);
+                    });
 
-                        let num = Math.floor(Math.random() * gifs.length + 1);
+                    let num = Math.floor(Math.random() * gifs.length + 1);
 
-                        bot.sendAnimation(message.chat.id, './assets/' + gifs[num - 1]);
-                    }).catch(res => bot.sendMessage(chatId, `❌ ${res}`));
+                    bot.sendAnimation(message.chat.id, './assets/' + gifs[num - 1]);
                 }).catch(res => bot.sendMessage(message.chat.id, `❌ ${res}`));
             } else {
                 bot.sendMessage(message.chat.id, `❌ Error calculating position size ser`);
@@ -225,7 +211,7 @@ app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`))
 //     if (order.type.toLowerCase() === 'buy' || order.type.toLowerCase() === 'sell') {
 //         // create the order
 //         let side = order.type.toLowerCase();
-//         // extract the correct pair from the string. 
+//         // extract the correct pair from the string.
 //         // THIS WILL ONLY WORK FOR PERPS!
 //         let pair = `${order.ticker.toLowerCase().slice(0, order.ticker.length - 4)}-perp`;
 
