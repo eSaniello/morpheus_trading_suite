@@ -33,6 +33,7 @@ bot.on('message', async (msg) => {
 })
 
 let risk_per_trade = 1
+let order = {}
 // Listener (handler) for callback data from /label command
 bot.on('callback_query', async (callbackQuery) => {
     const message = callbackQuery.message;
@@ -41,67 +42,69 @@ bot.on('callback_query', async (callbackQuery) => {
     if (decision == 'no') {
         // bot.deleteMessage(message.chat.id, message.message_id);
         bot.sendMessage(message.chat.id, `You decided not to take the trade. :(`);
-    } else {
+        order = {}
+    } else if (decision == 'market') {
         // make the connection with the user credentials
         const API_CONNECTION = new FTXRest({
             key: `${process.env.FTX_API_KEY}`,
             secret: `${process.env.FTX_API_SECRET}`
         });
 
-        if (order.type.toLowerCase() === 'buy' || order.type.toLowerCase() === 'sell') {
-            // create the order
-            let side = order.type.toLowerCase();
+        if (Object.keys(order).length > 0) {
+            if (order.type.toLowerCase() === 'buy' || order.type.toLowerCase() === 'sell') {
+                // create the order
+                let side = order.type.toLowerCase();
 
-            // extract the correct pair from the string. 
-            // THIS WILL ONLY WORK FOR PERPS!
-            let pair = `${order.pair.toLowerCase().slice(0, order.ticker.length - 4)}-perp`;
+                // extract the correct pair from the string. 
+                // THIS WILL ONLY WORK FOR PERPS!
+                let pair = `${order.pair.toLowerCase().slice(0, order.pair.length - 4)}-perp`;
 
-            let accountInfo = await FTX.getBalance(API_CONNECTION);
-            let entry = await FTX.getPrice(API_CONNECTION, pair);
-            let risk = risk_per_trade
-            // let tp = Number(order.tp);
-            let sl = Number(order.sl);
-            let account_size = accountInfo.collateral;
-            let pos_size = 0;
+                let accountInfo = await FTX.getBalance(API_CONNECTION);
+                let entry = await FTX.getPrice(API_CONNECTION, pair);
+                let risk = risk_per_trade
+                let sl = Number(order.sl);
+                let account_size = accountInfo.collateral;
+                let pos_size = 0;
 
-            if (side == 'buy')
-                pos_size = (account_size * (risk * 0.01)) / (entry - sl); //buy
-            else if (side == 'sell')
-                pos_size = (account_size * (risk * 0.01)) / (sl - entry); //sell
+                if (side == 'buy')
+                    pos_size = (account_size * (risk * 0.01)) / (entry - sl); //buy
+                else if (side == 'sell')
+                    pos_size = (account_size * (risk * 0.01)) / (sl - entry); //sell
 
-            if (pos_size != 0) {
-                // entry
-                API_CONNECTION.request({
-                    method: 'POST',
-                    path: '/orders',
-                    data: {
-                        market: pair,
-                        size: pos_size,
-                        side: side,
-                        type: 'market',
-                        price: null
-                    }
-                }).then(async () => {
-                    bot.sendMessage(message.chat.id, `✅ ${side.toUpperCase()} $${(pos_size).toFixed(5)} ${pair} @ $${entry} with SL @ $${sl}`);
+                if (pos_size != 0) {
+                    // entry
+                    API_CONNECTION.request({
+                        method: 'POST',
+                        path: '/orders',
+                        data: {
+                            market: pair,
+                            size: pos_size,
+                            side: side,
+                            type: 'market',
+                            price: null
+                        }
+                    }).then(async () => {
+                        bot.sendMessage(message.chat.id, `You decided to take the trade. LFG! \n \n ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${entry}`);
 
-                    // pick random gif
-                    let gifs = [];
-                    fs.readdirSync('./assets/').forEach(file => {
-                        gifs.push(file);
-                    });
+                        // pick random gif
+                        let gifs = [];
+                        fs.readdirSync('./assets/').forEach(file => {
+                            gifs.push(file);
+                        });
 
-                    let num = Math.floor(Math.random() * gifs.length + 1);
+                        let num = Math.floor(Math.random() * gifs.length + 1);
 
-                    bot.sendAnimation(message.chat.id, './assets/' + gifs[num - 1]);
-                }).catch(res => bot.sendMessage(message.chat.id, `❌ ${res}`));
-            } else {
-                bot.sendMessage(message.chat.id, `❌ Error calculating position size ser`);
+                        bot.sendAnimation(message.chat.id, './assets/' + gifs[num - 1]);
+
+                        order = {}
+                    }).catch(res => bot.sendMessage(message.chat.id, `❌ ${res}`));
+                } else {
+                    bot.sendMessage(message.chat.id, `❌ Error calculating position size ser`);
+                    order = {}
+                }
             }
         }
-
-
-        bot.sendMessage(message.chat.id, `You decided to take the trade. LFG!`);
-    }
+    } else if (decision == 'chase') { }
 
     bot.editMessageReplyMarkup({
         reply_markup: {
@@ -120,27 +123,14 @@ app.get("/", (req, res) => {
 
 // Alert structure
 // [
-//     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:23:02Z" },
-//     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:24:02Z" },
-//     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:25:04Z" },
-//     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:26:03Z" }
+//     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:23:02Z", "sl": "22000", "type": "BUY" },
 // ]
-// let alerts = []
-// let min_treshold = 5
-
 let messages = []
 
 app.post("/hook", async (req, res) => {
     if (req.body.chatId) {
-        const order = req.body;
-
-        // // If list is empty then add the first one
-        // if (alerts.length == 0)
-        //     alerts.push({ "pair": order.pair, "alert": order.alert, "time": order.time })
-
-        // // If the list already contains the pair then don't add it
-        // if (!HELPER.containsPair(order, alerts))
-        //     alerts.push({ "pair": order.pair, "alert": order.alert, "time": order.time })
+        const _order = req.body;
+        order = _order
 
         // telegram buttons
         const reply_options = {
@@ -149,8 +139,12 @@ app.post("/hook", async (req, res) => {
                 inline_keyboard: [
                     [
                         {
-                            text: 'Take the trade',
-                            callback_data: 'yes'
+                            text: 'Market order',
+                            callback_data: 'market'
+                        },
+                        {
+                            text: 'Limit chase',
+                            callback_data: 'chase'
                         }, {
                             text: 'Vibes are off',
                             callback_data: 'no'
@@ -160,41 +154,21 @@ app.post("/hook", async (req, res) => {
             },
             parse_mode: 'HTML'
         }
-        bot.sendMessage(order.chatId, `✅ Alert received: pair: ${order.pair}, alert: ${order.alert}, time: ${order.time}`, reply_options)
+        bot.sendMessage(_order.chatId, `${_order.type} signal for ${_order.pair} \nAlgo: ${_order.alert} \nSL: ${_order.sl}`, reply_options)
             .then(msg => {
                 // if there are multiple alerts, then replace the last one with the new one
                 messages.forEach(m => {
-                    if (m.pair == order.pair && order.time > m.time) {
-                        bot.deleteMessage(order.chatId, m.msg_id)
-                        messages = messages.filter(alert => alert.pair != order.pair)
+                    if (m.pair == _order.pair && _order.time > m.time) {
+                        bot.deleteMessage(_order.chatId, m.msg_id)
+                        messages = messages.filter(alert => alert.pair != _order.pair)
                     }
                 });
 
-                messages.push({ "pair": order.pair, "msg_id": msg.message_id, "time": order.time })
+                messages.push({ "pair": _order.pair, "msg_id": msg.message_id, "time": _order.time })
             });
     }
     res.status(200).end()
 })
-
-// // get all alerts
-// app.get("/alerts", (req, res) => {
-//     // if an alert in the list is older than specified minutes then remove it
-//     alerts.forEach(alert => {
-//         const date1 = new Date(alert.time);
-//         const date2 = new Date();
-
-//         const diff = date2.getTime() - date1.getTime();
-//         let msec = diff;
-//         const hh = Math.floor(msec / 1000 / 60 / 60);
-//         msec -= hh * 1000 * 60 * 60;
-//         const mm = Math.floor(msec / 1000 / 60);
-
-//         if (mm > min_treshold)
-//             alerts.pop(alert)
-//     });
-
-//     res.status(200).send(JSON.stringify(alerts)).end();
-// })
 
 const PORT = 80;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`))
