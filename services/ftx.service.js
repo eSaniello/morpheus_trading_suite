@@ -151,4 +151,14 @@ async function fundingRate(API_CONNECTION, pair) {
     return result.result[0].rate;
 }
 
-module.exports = { getBalance, getPrice, calculatePortfolio, marketOrder, openOrders, closeOrders, fundingRate }
+async function getMarket(API_CONNECTION, pair) {
+    // get market 
+    let request2 = API_CONNECTION.request({
+        method: 'GET',
+        path: '/markets/' + pair
+    })
+    let result2 = await request2;
+    return result2.result;
+}
+
+module.exports = { getBalance, getPrice, calculatePortfolio, marketOrder, openOrders, closeOrders, fundingRate, getMarket }

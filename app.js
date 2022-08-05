@@ -3,6 +3,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const CONFIG = require('./config/config');
 const HELPER = require('./services/helper.service');
 const FTX = require('./services/ftx.service');
+const CCXT = require('ccxt');
 const cors = require('cors');
 const express = require("express")
 const dotenv = require('dotenv');
@@ -19,6 +20,20 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json()) // To parse the incoming requests with JSON payloads
 
+
+// Connect to FTX API
+// make the connection with the user credentials
+const API_CONNECTION = new FTXRest({
+    key: `${process.env.FTX_API_KEY}`,
+    secret: `${process.env.FTX_API_SECRET}`
+});
+
+ftx_keys = {
+    'apiKey': `${process.env.FTX_API_KEY}`,
+    'secret': `${process.env.FTX_API_SECRET}`,
+}
+ccxt_ftx = new CCXT.ftx(ftx_keys)
+
 const token = `${process.env.TELEGRAM_API_SECRET}`;
 // Create a bot that uses 'polling' to fetch new updates
 const bot = new TelegramBot(token, { polling: true });
@@ -30,12 +45,6 @@ bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     let text = msg.text ? msg.text : '';
 
-    // make the connection with the user credentials
-    const API_CONNECTION = new FTXRest({
-        key: `${process.env.FTX_API_KEY}`,
-        secret: `${process.env.FTX_API_SECRET}`
-    });
-
     if (HELPER.checkText(text, 'info')) {
         bot.sendMessage(chatId, `Hello ${msg.from.first_name} 👋,
 What can I 😎 do for you?
@@ -43,14 +52,15 @@ What can I 😎 do for you?
 /balance - Get account balance
 /open - Get open orders
 /long - Open a long market order with a percentage size of account and stoploss [eg. /long btc 2 52000]
-/short - Open a short market order with a percentage size of account and stoploss [eg. /short 2 btc 55000]
-/long_chase - Chase the best bid with a limit buy order along with a percentage size of account and stoploss [eg. /long_chase 2 btc 55000]
-/short_chase - Chase the best ask with a limit sell order along with a percentage size of account and stoploss [eg. /short_chase 2 btc 55000]
+/short - Open a short market order with a percentage size of account and stoploss [eg. /short btc 2 55000]
+/long_chase - Chase the best bid with a limit buy order along with a percentage size of account and stoploss [eg. /long_chase btc 2 55000]
+/short_chase - Chase the best ask with a limit sell order along with a percentage size of account and stoploss [eg. /short_chase btc 2 55000]
 /close - Close all open orders using a market order [for specific pair /close eth]
 /alert - Forward TV alerts to this chat/chatroom`);
     }
 
-    if (HELPER.checkText(text, 'buy') || HELPER.checkText(text, 'sell') || HELPER.checkText(text, 'long') || HELPER.checkText(text, 'short')) {
+    // Market order
+    if (HELPER.checkText(text, 'long') || HELPER.checkText(text, 'short')) {
         text = text.replace('long', 'buy');
         text = text.replace('short', 'sell');
 
@@ -103,6 +113,110 @@ What can I 😎 do for you?
             bot.sendMessage(chatId, 'Niffo niffoooo, gib more info 😒');
         }
     }
+
+    // Limit chasing
+    if (HELPER.checkText(text, 'long_chase') || HELPER.checkText(text, 'short_chase')) {
+        text = text.replace('long_chase', 'buy');
+        text = text.replace('short_chase', 'sell');
+
+        let order = text.split(' ');
+        // only exec when there's a pair given
+        if (order[1]) {
+            // create the order
+            let side = order[0].replace('/', '').replace(CONFIG.BOTNAME, '');
+            let pair = HELPER.convertString(order[1]);
+
+            let accountInfo = await FTX.getBalance(API_CONNECTION);
+            let entry = await FTX.getPrice(API_CONNECTION, pair);
+            let risk = order[2];
+            let sl = order[3];
+            let account_size = accountInfo.collateral;
+            let pos_size = 0;
+            if (side == 'buy')
+                pos_size = (account_size * (risk * 0.01)) / (entry - sl); //buy
+            else if (side == 'sell')
+                pos_size = (account_size * (risk * 0.01)) / (sl - entry); //sell
+
+            if (pos_size != 0) {
+                // Start limit chasing
+                async function refreshOrder(order) {
+                    updated_orders = await ccxt_ftx.fetch_orders()
+                    updated_orders.forEach(updated_order => {
+                        if (updated_order.id == order.id) {
+                            return updated_order
+                        }
+                    })
+                }
+
+                let min_size = await FTX.getMarket(API_CONNECTION, pair);
+                let amount = 0.01
+                let amount_traded = 0
+
+                // init empty order and prices, preparing for the loop
+                let order = null
+                let bid = 0
+                let ask = 1e10
+
+                while (amount - amount_traded > min_size.minProvideSize) {
+                    let move = false
+                    ticker_data = await ccxt_ftx.fetchTicker(pair)
+                    let new_bid = ticker_data.bid
+                    let new_ask = ticker_data.ask
+
+                    if (bid != new_bid) {
+                        bid = new_bid
+
+                        // if an order already exists then cancel it
+                        if (order != null) {
+                            // cancel order
+                            try {
+                                await ccxt_ftx.cancelOrder(order.id)
+                            } catch (error) {
+                                console.log(error)
+                            }
+
+                            // refresh order details and track how much we got filled
+                            order = await refreshOrder(order)
+                            amount_traded += order.info.filledSize
+
+                            // exit now if we're done
+                            if (amount - amount_traded < min_size.minProvideSize) {
+                                break
+                            }
+                        }
+
+                        // place order
+                        order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_bid, { 'postOnly': true })
+                        console.log(`Buy ${amount} ${pair} @ ${new_bid}`)
+                    }
+
+                    // even if the price has not moved, check how much we have filled
+                    if (order != null) {
+                        order = await refreshOrder(order)
+                        amount_traded += order.info.filledSize
+                    }
+                }
+            }
+
+
+            // bot.sendMessage(chatId, `Market Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${entry}`);
+
+            // // pick random gif
+            // let gifs = [];
+            // fs.readdirSync('./assets/').forEach(file => {
+            //     gifs.push(file);
+            // });
+
+            // let num = Math.floor(Math.random() * gifs.length + 1);
+
+            // bot.sendAnimation(chatId, './assets/' + gifs[num - 1]);
+        } else {
+            bot.sendMessage(chatId, `❌ Error calculating position size ser`);
+        }
+    } else {
+        bot.sendMessage(chatId, 'Niffo niffoooo, gib more info 😒');
+    }
+
 
     if (HELPER.checkText(text, 'balance')) {
         let accountInfo = await FTX.getBalance(API_CONNECTION);
