@@ -139,77 +139,129 @@ What can I 😎 do for you?
 
             if (pos_size != 0) {
                 // Start limit chasing
-                async function refreshOrder(order) {
-                    updated_orders = await ccxt_ftx.fetch_orders()
-                    updated_orders.forEach(updated_order => {
-                        if (updated_order.id == order.id) {
-                            return updated_order
-                        }
-                    })
-                }
-
-                let min_size = await FTX.getMarket(API_CONNECTION, pair);
-                let amount = 0.01
-                let amount_traded = 0
+                console.log('Starting limit chasing')
+                let amount = pos_size
 
                 // init empty order and prices, preparing for the loop
-                let order = null
+                let _order = null
                 let bid = 0
                 let ask = 1e10
 
-                while (amount - amount_traded > min_size.minProvideSize) {
-                    let move = false
+                while (true) {
                     ticker_data = await ccxt_ftx.fetchTicker(pair)
                     let new_bid = ticker_data.bid
                     let new_ask = ticker_data.ask
 
-                    if (bid != new_bid) {
-                        bid = new_bid
+                    if (side == 'buy') {
+                        if (bid != new_bid) {
+                            bid = new_bid
 
-                        // if an order already exists then cancel it
-                        if (order != null) {
-                            // cancel order
-                            try {
-                                await ccxt_ftx.cancelOrder(order.id)
-                            } catch (error) {
-                                console.log(error)
+                            // place order if not already placed
+                            if (_order == null) {
+                                _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_bid, { 'postOnly': true })
+                                bot.sendMessage(chatId, `Limit Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+                                console.log(`Buy ${amount} ${pair} @ ${new_bid}`)
                             }
+                            // if an order already exists then cancel it
+                            else {
+                                // refresh order details and track how much we got filled
+                                updated_orders = await ccxt_ftx.fetch_orders()
+                                updated_orders.forEach(updated_order => {
+                                    if (updated_order.id == _order.id) {
+                                        _order = updated_order
+                                    }
+                                })
+                                // If we got filled then limit chasing is complete
+                                if (_order.filled != 0) {
+                                    console.log(`Limit chase Filled ${amount} ${pair} @ ${new_bid}`)
 
-                            // refresh order details and track how much we got filled
-                            order = await refreshOrder(order)
-                            amount_traded += order.info.filledSize
+                                    bot.sendMessage(chatId, `Filled! Limit Chase Completed: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
 
-                            // exit now if we're done
-                            if (amount - amount_traded < min_size.minProvideSize) {
-                                break
+                                    // pick random gif
+                                    let gifs = [];
+                                    fs.readdirSync('./assets/').forEach(file => {
+                                        gifs.push(file);
+                                    });
+
+                                    let num = Math.floor(Math.random() * gifs.length + 1);
+
+                                    bot.sendAnimation(chatId, './assets/' + gifs[num - 1]);
+                                    break;
+                                }
+                                // If we did not get filled then cancel the order and put in a new one
+                                else {
+                                    // cancel prev order
+                                    if (_order.status == 'open') {
+                                        await ccxt_ftx.cancelOrder(_order.id)
+                                        console.log(`Cancel Buy ${amount} ${pair} @ ${new_bid}`)
+                                        bot.sendMessage(chatId, `Bid moved, Cancel Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+                                    }
+                                    _order = null
+
+                                    // Set new order
+                                    _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_bid, { 'postOnly': true })
+                                    bot.sendMessage(chatId, `New Limit order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+                                    console.log(`Buy ${amount} ${pair} @ ${new_bid}`)
+                                }
                             }
                         }
-
-                        // place order
-                        order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_bid, { 'postOnly': true })
-                        console.log(`Buy ${amount} ${pair} @ ${new_bid}`)
                     }
+                    else if (side == 'sell') {
+                        if (ask != new_ask) {
+                            ask = new_ask
 
-                    // even if the price has not moved, check how much we have filled
-                    if (order != null) {
-                        order = await refreshOrder(order)
-                        amount_traded += order.info.filledSize
+                            // place order if not already placed
+                            if (_order == null) {
+                                _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_ask, { 'postOnly': true })
+                                bot.sendMessage(chatId, `Limit Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+                                console.log(`Sell ${amount} ${pair} @ ${new_ask}`)
+                            }
+                            // if an order already exists then cancel it
+                            else {
+                                // refresh order details and track how much we got filled
+                                updated_orders = await ccxt_ftx.fetch_orders()
+                                updated_orders.forEach(updated_order => {
+                                    if (updated_order.id == _order.id) {
+                                        _order = updated_order
+                                    }
+                                })
+                                // If we got filled then limit chasing is complete
+                                if (_order.filled != 0) {
+                                    console.log(`Limit chase Filled ${amount} ${pair} @ ${new_ask}`)
+
+                                    bot.sendMessage(chatId, `Filled! Limit Chase Completed: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+
+                                    // pick random gif
+                                    let gifs = [];
+                                    fs.readdirSync('./assets/').forEach(file => {
+                                        gifs.push(file);
+                                    });
+
+                                    let num = Math.floor(Math.random() * gifs.length + 1);
+
+                                    bot.sendAnimation(chatId, './assets/' + gifs[num - 1]);
+                                    break;
+                                }
+                                // If we did not get filled then cancel the order and put in a new one
+                                else {
+                                    // cancel prev order
+                                    if (_order.status == 'open') {
+                                        await ccxt_ftx.cancelOrder(_order.id)
+                                        console.log(`Cancel Buy ${amount} ${pair} @ ${new_ask}`)
+                                        bot.sendMessage(chatId, `Ask moved, Cancel Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+                                    }
+                                    _order = null
+
+                                    // Set new order
+                                    _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_ask, { 'postOnly': true })
+                                    bot.sendMessage(chatId, `New Limit order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+                                    console.log(`Buy ${amount} ${pair} @ ${new_ask}`)
+                                }
+                            }
+                        }
                     }
                 }
             }
-
-
-            // bot.sendMessage(chatId, `Market Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${entry}`);
-
-            // // pick random gif
-            // let gifs = [];
-            // fs.readdirSync('./assets/').forEach(file => {
-            //     gifs.push(file);
-            // });
-
-            // let num = Math.floor(Math.random() * gifs.length + 1);
-
-            // bot.sendAnimation(chatId, './assets/' + gifs[num - 1]);
         } else {
             bot.sendMessage(chatId, `❌ Error calculating position size ser`);
         }
@@ -370,7 +422,165 @@ bot.on('callback_query', async (callbackQuery) => {
                 }
             }
         }
-    } else if (decision == 'chase') { }
+    } else if (decision == 'chase') {
+        // make the connection with the user credentials
+        const API_CONNECTION = new FTXRest({
+            key: `${process.env.FTX_API_KEY}`,
+            secret: `${process.env.FTX_API_SECRET}`
+        });
+
+        if (Object.keys(order).length > 0) {
+            if (order.type.toLowerCase() === 'buy' || order.type.toLowerCase() === 'sell') {
+                // create the order
+                let side = order.type.toLowerCase();
+
+                // extract the correct pair from the string. 
+                // THIS WILL ONLY WORK FOR PERPS!
+                let pair = `${order.pair.toLowerCase().slice(0, order.pair.length - 4)}-perp`;
+
+                let accountInfo = await FTX.getBalance(API_CONNECTION);
+                let entry = await FTX.getPrice(API_CONNECTION, pair);
+                let risk = risk_per_trade
+                let sl = Number(order.sl);
+                let account_size = accountInfo.collateral;
+                let pos_size = 0;
+
+                if (side == 'buy')
+                    pos_size = (account_size * (risk * 0.01)) / (entry - sl); //buy
+                else if (side == 'sell')
+                    pos_size = (account_size * (risk * 0.01)) / (sl - entry); //sell
+
+                if (pos_size != 0) {
+                    // Start limit chasing
+                    console.log('Starting limit chasing')
+                    let amount = pos_size
+
+                    // init empty order and prices, preparing for the loop
+                    let _order = null
+                    let bid = 0
+                    let ask = 1e10
+
+                    while (true) {
+                        ticker_data = await ccxt_ftx.fetchTicker(pair)
+                        let new_bid = ticker_data.bid
+                        let new_ask = ticker_data.ask
+
+                        if (side == 'buy') {
+                            if (bid != new_bid) {
+                                bid = new_bid
+
+                                // place order if not already placed
+                                if (_order == null) {
+                                    _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_bid, { 'postOnly': true })
+                                    bot.sendMessage(chatId, `Limit Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+                                    console.log(`Buy ${amount} ${pair} @ ${new_bid}`)
+                                }
+                                // if an order already exists then cancel it
+                                else {
+                                    // refresh order details and track how much we got filled
+                                    updated_orders = await ccxt_ftx.fetch_orders()
+                                    updated_orders.forEach(updated_order => {
+                                        if (updated_order.id == _order.id) {
+                                            _order = updated_order
+                                        }
+                                    })
+                                    // If we got filled then limit chasing is complete
+                                    if (_order.filled != 0) {
+                                        console.log(`Limit chase Filled ${amount} ${pair} @ ${new_bid}`)
+
+                                        bot.sendMessage(chatId, `Filled! Limit Chase Completed: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+
+                                        // pick random gif
+                                        let gifs = [];
+                                        fs.readdirSync('./assets/').forEach(file => {
+                                            gifs.push(file);
+                                        });
+
+                                        let num = Math.floor(Math.random() * gifs.length + 1);
+
+                                        bot.sendAnimation(chatId, './assets/' + gifs[num - 1]);
+                                        break;
+                                    }
+                                    // If we did not get filled then cancel the order and put in a new one
+                                    else {
+                                        // cancel prev order
+                                        if (_order.status == 'open') {
+                                            await ccxt_ftx.cancelOrder(_order.id)
+                                            console.log(`Cancel Buy ${amount} ${pair} @ ${new_bid}`)
+                                            bot.sendMessage(chatId, `Bid moved, Cancel Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+                                        }
+                                        _order = null
+
+                                        // Set new order
+                                        _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_bid, { 'postOnly': true })
+                                        bot.sendMessage(chatId, `New Limit order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+                                        console.log(`Buy ${amount} ${pair} @ ${new_bid}`)
+                                    }
+                                }
+                            }
+                        }
+                        else if (side == 'sell') {
+                            if (ask != new_ask) {
+                                ask = new_ask
+
+                                // place order if not already placed
+                                if (_order == null) {
+                                    _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_ask, { 'postOnly': true })
+                                    bot.sendMessage(chatId, `Limit Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+                                    console.log(`Sell ${amount} ${pair} @ ${new_ask}`)
+                                }
+                                // if an order already exists then cancel it
+                                else {
+                                    // refresh order details and track how much we got filled
+                                    updated_orders = await ccxt_ftx.fetch_orders()
+                                    updated_orders.forEach(updated_order => {
+                                        if (updated_order.id == _order.id) {
+                                            _order = updated_order
+                                        }
+                                    })
+                                    // If we got filled then limit chasing is complete
+                                    if (_order.filled != 0) {
+                                        console.log(`Limit chase Filled ${amount} ${pair} @ ${new_ask}`)
+
+                                        bot.sendMessage(chatId, `Filled! Limit Chase Completed: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+
+                                        // pick random gif
+                                        let gifs = [];
+                                        fs.readdirSync('./assets/').forEach(file => {
+                                            gifs.push(file);
+                                        });
+
+                                        let num = Math.floor(Math.random() * gifs.length + 1);
+
+                                        bot.sendAnimation(chatId, './assets/' + gifs[num - 1]);
+                                        break;
+                                    }
+                                    // If we did not get filled then cancel the order and put in a new one
+                                    else {
+                                        // cancel prev order
+                                        if (_order.status == 'open') {
+                                            await ccxt_ftx.cancelOrder(_order.id)
+                                            console.log(`Cancel Buy ${amount} ${pair} @ ${new_ask}`)
+                                            bot.sendMessage(chatId, `Ask moved, Cancel Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+                                        }
+                                        _order = null
+
+                                        // Set new order
+                                        _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_ask, { 'postOnly': true })
+                                        bot.sendMessage(chatId, `New Limit order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+                                        console.log(`Buy ${amount} ${pair} @ ${new_ask}`)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    bot.sendMessage(message.chat.id, `❌ Error calculating position size ser`);
+                    order = {}
+                }
+            }
+        }
+    }
 
     bot.editMessageReplyMarkup({
         reply_markup: {
