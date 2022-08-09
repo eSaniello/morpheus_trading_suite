@@ -389,6 +389,13 @@ bot.on('callback_query', async (callbackQuery) => {
                 else if (side == 'sell')
                     pos_size = (account_size * (risk * 0.01)) / (sl - entry); //sell
 
+                console.log(`
+                Account Size: ${account_size} \n
+                Entry: ${entry} \n
+                SL: ${sl} \n
+                Risk: ${risk} \n
+                Pos Size: ${pos_size} \n`)
+
                 if (pos_size != 0) {
                     // entry
                     API_CONNECTION.request({
@@ -436,7 +443,7 @@ bot.on('callback_query', async (callbackQuery) => {
 
                 // extract the correct pair from the string. 
                 // THIS WILL ONLY WORK FOR PERPS!
-                let pair = `${order.pair.toLowerCase().slice(0, order.pair.length - 4)}-perp`;
+                let pair = `${order.pair.toUpperCase().slice(0, order.pair.length - 4)}-PERP`;
 
                 let accountInfo = await FTX.getBalance(API_CONNECTION);
                 let entry = await FTX.getPrice(API_CONNECTION, pair);
@@ -472,7 +479,7 @@ bot.on('callback_query', async (callbackQuery) => {
                                 // place order if not already placed
                                 if (_order == null) {
                                     _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_bid, { 'postOnly': true })
-                                    bot.sendMessage(chatId, `Limit Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+                                    bot.sendMessage(message.chat.id, `Limit Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
                                     console.log(`Buy ${amount} ${pair} @ ${new_bid}`)
                                 }
                                 // if an order already exists then cancel it
@@ -488,7 +495,7 @@ bot.on('callback_query', async (callbackQuery) => {
                                     if (_order.filled != 0) {
                                         console.log(`Limit chase Filled ${amount} ${pair} @ ${new_bid}`)
 
-                                        bot.sendMessage(chatId, `Filled! Limit Chase Completed: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+                                        bot.sendMessage(message.chat.id, `Filled! Limit Chase Completed: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
 
                                         // pick random gif
                                         let gifs = [];
@@ -498,7 +505,7 @@ bot.on('callback_query', async (callbackQuery) => {
 
                                         let num = Math.floor(Math.random() * gifs.length + 1);
 
-                                        bot.sendAnimation(chatId, './assets/' + gifs[num - 1]);
+                                        bot.sendAnimation(message.chat.id, './assets/' + gifs[num - 1]);
                                         break;
                                     }
                                     // If we did not get filled then cancel the order and put in a new one
@@ -507,13 +514,13 @@ bot.on('callback_query', async (callbackQuery) => {
                                         if (_order.status == 'open') {
                                             await ccxt_ftx.cancelOrder(_order.id)
                                             console.log(`Cancel Buy ${amount} ${pair} @ ${new_bid}`)
-                                            bot.sendMessage(chatId, `Bid moved, Cancel Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+                                            bot.sendMessage(message.chat.id, `Bid moved, Cancel Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
                                         }
                                         _order = null
 
                                         // Set new order
                                         _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_bid, { 'postOnly': true })
-                                        bot.sendMessage(chatId, `New Limit order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
+                                        bot.sendMessage(message.chat.id, `New Limit order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_bid}`);
                                         console.log(`Buy ${amount} ${pair} @ ${new_bid}`)
                                     }
                                 }
@@ -526,7 +533,7 @@ bot.on('callback_query', async (callbackQuery) => {
                                 // place order if not already placed
                                 if (_order == null) {
                                     _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_ask, { 'postOnly': true })
-                                    bot.sendMessage(chatId, `Limit Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+                                    bot.sendMessage(message.chat.id, `Limit Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
                                     console.log(`Sell ${amount} ${pair} @ ${new_ask}`)
                                 }
                                 // if an order already exists then cancel it
@@ -542,7 +549,7 @@ bot.on('callback_query', async (callbackQuery) => {
                                     if (_order.filled != 0) {
                                         console.log(`Limit chase Filled ${amount} ${pair} @ ${new_ask}`)
 
-                                        bot.sendMessage(chatId, `Filled! Limit Chase Completed: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+                                        bot.sendMessage(message.chat.id, `Filled! Limit Chase Completed: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
 
                                         // pick random gif
                                         let gifs = [];
@@ -552,7 +559,7 @@ bot.on('callback_query', async (callbackQuery) => {
 
                                         let num = Math.floor(Math.random() * gifs.length + 1);
 
-                                        bot.sendAnimation(chatId, './assets/' + gifs[num - 1]);
+                                        bot.sendAnimation(message.chat.id, './assets/' + gifs[num - 1]);
                                         break;
                                     }
                                     // If we did not get filled then cancel the order and put in a new one
@@ -561,13 +568,13 @@ bot.on('callback_query', async (callbackQuery) => {
                                         if (_order.status == 'open') {
                                             await ccxt_ftx.cancelOrder(_order.id)
                                             console.log(`Cancel Buy ${amount} ${pair} @ ${new_ask}`)
-                                            bot.sendMessage(chatId, `Ask moved, Cancel Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+                                            bot.sendMessage(message.chat.id, `Ask moved, Cancel Order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
                                         }
                                         _order = null
 
                                         // Set new order
                                         _order = await ccxt_ftx.createOrder(pair, 'limit', side, amount, new_ask, { 'postOnly': true })
-                                        bot.sendMessage(chatId, `New Limit order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
+                                        bot.sendMessage(message.chat.id, `New Limit order: ${side.toUpperCase()} $${(pos_size).toFixed(2)} ${pair} @ $${new_ask}`);
                                         console.log(`Buy ${amount} ${pair} @ ${new_ask}`)
                                     }
                                 }
