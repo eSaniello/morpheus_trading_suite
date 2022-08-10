@@ -385,9 +385,9 @@ bot.on('callback_query', async (callbackQuery) => {
                 let pos_size = 0;
 
                 if (side == 'buy')
-                    pos_size = (account_size * (risk * 0.01)) / (entry - sl); //buy
+                    pos_size = (account_size * (risk * 0.01)) / (entry - sl)  //buy
                 else if (side == 'sell')
-                    pos_size = (account_size * (risk * 0.01)) / (sl - entry); //sell
+                    pos_size = (account_size * (risk * 0.01)) / (sl - entry) //sell
 
                 console.log(`
                 Account Size: ${account_size} \n
