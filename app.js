@@ -610,6 +610,7 @@ app.get("/", (req, res) => {
 //     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:23:02Z", "sl": "22000", "type": "BUY" },
 // ]
 let messages = []
+let min_treshold = 5
 
 app.post("/hook", async (req, res) => {
     if (req.body.chatId) {
@@ -639,23 +640,27 @@ app.post("/hook", async (req, res) => {
             parse_mode: 'HTML'
         }
         bot.sendMessage(_order.chatId, `${_order.type} signal for ${_order.pair} \nAlgo: ${_order.alert} \nSL: ${_order.sl}`, reply_options)
-            .then(msg => {
-                // if there are multiple alerts, then replace the last one with the new one
-                messages.forEach(m => {
-                    let date1 = moment.unix(_order.time / 1000)
-                    let date2 = moment.unix(m.time / 1000)
-                    console.log(date1.format())
-                    console.log(date2.format())
-                    console.log(date1.diff(date2, 'minutes'))
+        // .then(msg => {
+        //     console.log(messages)
+        //     // if there are multiple alerts, then replace the last one with the new one
+        //     messages.forEach(m => {
+        //         let date1 = moment.unix(_order.time / 1000)
+        //         let date2 = moment.unix(m.time / 1000)
+        //         let diff = date1.diff(date2, 'minutes')
+        //         // console.log(date1.format())
+        //         // console.log(date2.format())
+        //         // console.log(diff)
 
-                    if (m.pair == _order.pair && _order.time > m.time) {
-                        bot.deleteMessage(_order.chatId, m.msg_id)
-                        messages = messages.filter(alert => alert.pair != _order.pair)
-                    }
-                });
+        //         if (m.pair == _order.pair && diff < min_treshold) {
+        //             bot.deleteMessage(_order.chatId, m.msg_id)
+        //             messages = messages.filter(alert => alert.pair != _order.pair)
+        //         }
+        //     });
+        //     console.log(messages)
 
-                messages.push({ "pair": _order.pair, "msg_id": msg.message_id, "time": _order.time })
-            });
+        //     messages.push({ "pair": _order.pair, "msg_id": msg.message_id, "time": _order.time })
+        //     console.log(messages)
+        // });
     }
     res.status(200).end()
 })
