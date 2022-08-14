@@ -10,6 +10,7 @@ const dotenv = require('dotenv');
 const moment = require('moment');
 moment().format();
 const fs = require('fs');
+const { devNull } = require('os');
 const app = express()
 app.use(cors())
 dotenv.config();
@@ -348,7 +349,7 @@ MarkPrice: $${price}
 - Options = Once per bar close
 - Webhook URL = http://server_url/hook
 - Give it any alert name
-- Message should be = {"chatId":${chatId},"type":"BUY or SELL","pair":"{{ticker}}","alert":"ALERT NAME","time":"{{time}}","sl":"{{plot("SL")}}"}`)
+- Message should be = {"chatId":${chatId},"type":"BUY or SELL","pair":"{{ticker}}","exchange":"{{exchange}}","alert":"ALERT NAME","time":"{{time}}","sl":"{{plot("SL")}}"}`)
     }
 });
 
@@ -617,27 +618,41 @@ app.post("/hook", async (req, res) => {
         const _order = req.body;
         order = _order
 
-        // telegram buttons
-        const reply_options = {
-            reply_markup: {
-                one_time_keyboard: true,
-                inline_keyboard: [
-                    [
-                        {
-                            text: 'Market order',
-                            callback_data: 'market'
-                        },
-                        {
-                            text: 'Limit chase',
-                            callback_data: 'chase'
-                        }, {
-                            text: 'Vibes are off',
-                            callback_data: 'no'
-                        },
-                    ]
-                ],
-            },
-            parse_mode: 'HTML'
+        // Only put trade buttons for FTX pairs
+        let reply_options = null
+        if (_order.exchange == 'FTX') {
+            // telegram buttons
+            reply_options = {
+                reply_markup: {
+                    one_time_keyboard: true,
+                    inline_keyboard: [
+                        [
+                            {
+                                text: 'Market order',
+                                callback_data: 'market'
+                            },
+                            {
+                                text: 'Limit chase',
+                                callback_data: 'chase'
+                            }, {
+                                text: 'Vibes are off',
+                                callback_data: 'no'
+                            },
+                        ]
+                    ],
+                },
+                parse_mode: 'HTML'
+            }
+        } else {
+            // telegram buttons
+            reply_options = {
+                reply_markup: {
+                    one_time_keyboard: true,
+                    inline_keyboard: [
+                    ],
+                },
+                parse_mode: 'HTML'
+            }
         }
         bot.sendMessage(_order.chatId, `${_order.type} signal for ${_order.pair} \nAlgo: ${_order.alert} \nSL: ${_order.sl}`, reply_options)
         // .then(msg => {
