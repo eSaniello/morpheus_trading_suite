@@ -7,6 +7,8 @@ const CCXT = require('ccxt');
 const cors = require('cors');
 const express = require("express")
 const dotenv = require('dotenv');
+const moment = require('moment');
+moment().format();
 const fs = require('fs');
 const app = express()
 app.use(cors())
@@ -607,7 +609,7 @@ app.get("/", (req, res) => {
 // [
 //     { "pair": "BTCPERP", "alert": "ALERT 1", "time": "2022-07-07T01:23:02Z", "sl": "22000", "type": "BUY" },
 // ]
-// let messages = []
+let messages = []
 
 app.post("/hook", async (req, res) => {
     if (req.body.chatId) {
@@ -637,17 +639,23 @@ app.post("/hook", async (req, res) => {
             parse_mode: 'HTML'
         }
         bot.sendMessage(_order.chatId, `${_order.type} signal for ${_order.pair} \nAlgo: ${_order.alert} \nSL: ${_order.sl}`, reply_options)
-        // .then(msg => {
-        //     // if there are multiple alerts, then replace the last one with the new one
-        //     messages.forEach(m => {
-        //         if (m.pair == _order.pair && _order.time > m.time) {
-        //             bot.deleteMessage(_order.chatId, m.msg_id)
-        //             messages = messages.filter(alert => alert.pair != _order.pair)
-        //         }
-        //     });
+            .then(msg => {
+                // if there are multiple alerts, then replace the last one with the new one
+                messages.forEach(m => {
+                    let date1 = moment.unix(_order.time / 1000)
+                    let date2 = moment.unix(m.time / 1000)
+                    console.log(date1.format())
+                    console.log(date2.format())
+                    console.log(date1.diff(date2, 'minutes'))
 
-        //     messages.push({ "pair": _order.pair, "msg_id": msg.message_id, "time": _order.time })
-        // });
+                    if (m.pair == _order.pair && _order.time > m.time) {
+                        bot.deleteMessage(_order.chatId, m.msg_id)
+                        messages = messages.filter(alert => alert.pair != _order.pair)
+                    }
+                });
+
+                messages.push({ "pair": _order.pair, "msg_id": msg.message_id, "time": _order.time })
+            });
     }
     res.status(200).end()
 })
