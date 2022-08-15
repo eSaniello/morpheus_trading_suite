@@ -1,5 +1,5 @@
 # Semi Automatic Trading Suite
-I stole Mitchel's [ftx-telegram-trader](https://github.com/pawiromitchel/ftx-telegram-trader) and modified it to my own needs for scalping BTC. Thanks sir [@pawiromitchel](https://github.com/pawiromitchel) :)
+I stole Mitchel's [ftx-telegram-trader](https://github.com/pawiromitchel/ftx-telegram-trader) and modified it to my own needs for scalping crypto. Thanks sir [@pawiromitchel](https://github.com/pawiromitchel) :)
 
 ## NOTE: As of this moment, this bot only supports FTX. U can still place alerts for other markets but the trading functionality won't work.
 
